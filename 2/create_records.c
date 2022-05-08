@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
 		exit(1);
 	}
 	
-	student* st_list = (student*)malloc(sizeof(student) * records);
+	student* st_list = (student*)calloc(records, sizeof(student));
 	
 	for(int i=0; i<records; i++){
 		strcpy(st_list[i].name, "sangjun");
