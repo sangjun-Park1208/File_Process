@@ -82,7 +82,6 @@ void ftl_write(int lsn, char *sectorbuf){
 
 	}
 
-	printf("lsn : %d, pbn : %d, ppn : %d, reserved_blk : %d \n", lsn, addrmaptbl.pbn[lbn], ppn, reserved_empty_blk);
 
 #ifdef PRINT_FOR_DEBUG			
 #endif
@@ -92,8 +91,19 @@ void ftl_write(int lsn, char *sectorbuf){
 
 void ftl_read(int lsn, char *sectorbuf){
 	
+	int lbn = lsn / PAGES_PER_BLOCK;
+	int offset = lsn % PAGES_PER_BLOCK;
+	int pbn = addrmaptbl.pbn[lbn];
+	int ppn = pbn * PAGES_PER_BLOCK + offset;
 
+	char* pagebuf = (char*)malloc(PAGE_SIZE);
+	
+	dd_read(ppn, pagebuf);
+	memcpy(sectorbuf, pagebuf, SECTOR_SIZE);
+
+	printf("%s\n", sectorbuf);
 #ifdef PRINT_FOR_DEBUG
+
 #endif
 
 	return;
