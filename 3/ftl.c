@@ -20,44 +20,71 @@ void print_block(int pbn);
 void print_addrmaptbl();
 int dd_read(int ppn, char* pagebuf);
 int dd_write(int ppn, char* pagebuf);
+int dd_erase(int pbn);
 
 void ftl_open(){
 	int i;
 
-	for(i = 0; i < DATABLKS_PER_DEVICE; i++)
-		addrmaptbl.pbn[i] = DATABLKS_PER_DEVICE - i;
+	for(i = 0; i < BLOCKS_PER_DEVICE; i++)
+		addrmaptbl.pbn[i] = -1;
 
 
 	return;
 }
 
 void ftl_write(int lsn, char *sectorbuf){
-	int pbn = lsn / PAGES_PER_BLOCK;
+
+	int lbn = lsn / PAGES_PER_BLOCK;
 	int offset = lsn % PAGES_PER_BLOCK;
-	int ppn = addrmaptbl.pbn[pbn] * BLOCK_SIZE + offset;
+	int pbn = addrmaptbl.pbn[lbn];
+	int ppn = pbn * PAGES_PER_BLOCK + offset;
 
 	char* pagebuf = (char*)malloc(PAGE_SIZE);
 	strcpy(pagebuf, sectorbuf);
-	
+
 	SpareData* spd;
 	spd = (SpareData*)malloc(SPARE_SIZE);
 	spd->lsn = lsn;
-	memset(spd->dummy, '\0', SPARE_SIZE-4);
 	memcpy(pagebuf+SECTOR_SIZE, spd, SPARE_SIZE);
 
-	printf("spd->lsn : %d\n", spd->lsn);
-	printf("addrmaptbl.pbn[%d] : %d\n", pbn, addrmaptbl.pbn[pbn]);
-	printf("pagebuf : \n%s\n", pagebuf);
+	if(pbn == -1){
+		pbn = lbn;
+		ppn = pbn * PAGES_PER_BLOCK + offset;
+		dd_write(ppn, pagebuf);
+		addrmaptbl.pbn[lbn] = pbn;
+	}
+	else{
+		char* readbuf = (char*)malloc(PAGE_SIZE);
+		dd_read(ppn, readbuf);
+		int cmp;
+		memcpy(&cmp, readbuf, sizeof(char));
+	
+		if(cmp == (char)0xFF){ // first write
+			dd_write(ppn, pagebuf);
+			addrmaptbl.pbn[lbn] = pbn;
+		}
+		else{ // overwrite
+			for(int i=0; i<PAGES_PER_BLOCK; i++){
+				if(i == offset){
+					continue;
+				}
+				dd_read(pbn*PAGES_PER_BLOCK+i, readbuf);
+				dd_write(reserved_empty_blk*PAGES_PER_BLOCK+i, readbuf);
+			}
+			memcpy(readbuf, sectorbuf, SECTOR_SIZE);
+			memcpy(readbuf+SECTOR_SIZE, spd, SPARE_SIZE);
+			dd_write(reserved_empty_blk*PAGES_PER_BLOCK+offset, readbuf);
+			addrmaptbl.pbn[lbn] = reserved_empty_blk;
+			dd_erase(pbn);
+			reserved_empty_blk = pbn;
 
-	dd_write(ppn, pagebuf);
+		}
 
-	char* tmp = (char*)malloc(PAGE_SIZE);
-	dd_read(ppn, tmp);
-	printf("%s\n", tmp);
+	}
+
+	printf("lsn : %d, pbn : %d, ppn : %d, reserved_blk : %d \n", lsn, addrmaptbl.pbn[lbn], ppn, reserved_empty_blk);
 
 #ifdef PRINT_FOR_DEBUG			
-//	print_addrmaptbl();
-//	print_block(pbn);
 #endif
 	
 	return;
@@ -67,9 +94,6 @@ void ftl_read(int lsn, char *sectorbuf){
 	
 
 #ifdef PRINT_FOR_DEBUG
-//	int pbn = lsn / PAGES_PER_BLOCK;
-//	print_block(pbn);
-//	print_addrmaptbl();
 #endif
 
 	return;
@@ -101,7 +125,7 @@ void print_addrmaptbl(void){
 	int i;
 
 	printf("Address Mapping Table: \n");
-	for(i = 0; i < DATABLKS_PER_DEVICE; i++)
+	for(i = 0; i < BLOCKS_PER_DEVICE; i++)
 		if(addrmaptbl.pbn[i] >= 0)
 			printf("[%d %d]\n", i, addrmaptbl.pbn[i]);
 	return;
