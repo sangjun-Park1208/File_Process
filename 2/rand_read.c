@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define SUFFLE_NUM 1000000
+#define SUFFLE_NUM 10000
 
 void GenRecordSequence(int* list, int n);
 void swap(int* a, int* b);
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]){
 	close(fd);
 
 	gettimeofday(&endTime, NULL);
-	printf("%ld usec\n", endTime.tv_usec - startTime.tv_usec);
+	printf("%ld usec\n", 1000000*(endTime.tv_sec - startTime.tv_sec) + (endTime.tv_usec - startTime.tv_usec));
 	exit(0);
 }
 
